@@ -14,11 +14,11 @@ types = ['Normal','Fire','Water','Grass','Electric','Ice',
          'Poison','Flying','Fighting','Rock','Ground','Bug',
          'Psychic','Dark','Ghost','Dragon','Steel','Fairy']
 
-# Create the main window
 root = tk.Tk()
 root.title("Format Builder")
 root.geometry("600x600")
 
+#this part is necessary to prevent it from hanging if you close the window
 def on_closing():
     print("Tkinter window closed. Exiting script.")
     root.quit()
@@ -26,18 +26,19 @@ def on_closing():
 
 root.protocol("WM_DELETE_WINDOW", on_closing)
 
-# Create a Notebook (tab control)
+#basic tkinter setup
 notebook = ttk.Notebook(root)
 notebook.pack(expand=True, fill="both")
 
-# Create Tab 1 with 5 checkboxes and an input text box
 tab1 = ttk.Frame(notebook)
 notebook.add(tab1, text='Format rules')
 
+#first page is for settings and 'generate' button
 checkbox_vars1 = []
 allowances = ['Allow Restricteds?','Allow Mythicals?','Require Fake Out?',
               'Require Trick Room?','Require Intimidate?']
 for i in range(5):
+    #fakeout, trickroom, and intimdate are true by default, restricted & mythical aren't
     if i > 1:
         var = tk.BooleanVar(value=True)
     else:
@@ -46,7 +47,7 @@ for i in range(5):
     cb.grid(row=i, column=0, sticky="w", padx=10, pady=5)
     checkbox_vars1.append(var)
 
-# Input Text Box
+#size of the format and status of the app for user feedback on bugs
 label = tk.Label(tab1, text="Number of Pokemon:")
 label.grid(row=6, column=0, padx=10, pady=(20, 5), sticky="w")
 entry = tk.Entry(tab1, width=30)
@@ -55,9 +56,10 @@ entry.grid(row=7, column=0, padx=10, pady=5)
 status = tk.Label(tab1, text="Ready to generate", wraplength=300, justify='left')
 status.grid(row=9, column=0, padx=10, pady=(20, 5), sticky="w")
 
-# Function to run when button is clicked
+#this is really the meat of the app, just stuffed it into one function because laziness
 def on_submit(df, types):
     
+    #some quick sanity checks to avoid issues
     try:
         n_pokemon = int(entry.get())
     except:
@@ -80,6 +82,8 @@ def on_submit(df, types):
         df = df[df['Restricted'] == 0]
     if tab1_vars[1] == False:
         df = df[df['Mythical'] == 0]
+
+    #a design choice I made: fulfill requirements in moves/abilities before typing
     if tab1_vars[2] == True:
         picks.append(df[(df['Fake Out'] == 1) & (~df['Pokemon'].isin(picks))]['Pokemon'].sample(n=1).iloc[0])
     if tab1_vars[3] == True:
@@ -90,6 +94,7 @@ def on_submit(df, types):
     typings = df[df['Pokemon'].isin(picks)]['Typing'].to_list()
     typings = '/'.join(typings)
 
+    #check what types you already have, then meet other requirements (rechecking along the way)
     current_types = [t.lower() for t in types if t.lower() in typings]
     for t in req_types:
         if t.lower() not in current_types:
@@ -102,16 +107,20 @@ def on_submit(df, types):
             for ty in added_types:
                 current_types.append(ty)
 
+    #fill in the rest up to your total number
     remaining_picks = n_pokemon - len(picks)
     final_picks = df[~df['Pokemon'].isin(picks)]['Pokemon'].sample(remaining_picks).to_list()
     for pick in final_picks:
         picks.append(pick)
+
+    ### OUTPUT PORTION STARTS HERE
 
     output_str = ', '.join(picks)
     status.config(text=f'Your {n_pokemon} are: {output_str}')
 
     sns.set_context('notebook')
 
+    #this block is for making the table about the stats of the pool of mons
     df_picks = df[df['Pokemon'].isin(picks)]
     bst = df_picks[['HP','Attack','Defense','Sp.Atk','Sp.Def','Speed']].sum(axis=1).to_list()
     df_picks = df_picks.assign(BST=bst)
@@ -126,11 +135,7 @@ def on_submit(df, types):
         col = [best_mon,top3[0],top3[1],top3[2],'',avg,'',bot3[0],bot3[1],bot3[2],worst_mon]
         stats_df[stat] = col
 
-    df_temp = df_picks.drop_duplicates(['Pokemon','Typing'])
-    type_dict = {}
-    for t in types:
-        type_dict[t] = df_temp[df_temp['Typing'].str.contains(t.lower())]['Pokemon'].to_list()
-
+    #make the table (it's ugly)
     fig, ax = plt.subplots(figsize=(8, 8))
     plt.rcParams.update({'font.size': 16})
     ax.axis('off')
@@ -141,6 +146,7 @@ def on_submit(df, types):
     canvas.draw()
     canvas.get_tk_widget().pack(side=tk.TOP, fill=tk.BOTH, expand=1)
 
+    #make a 'plot' for the speed tiers
     fig, ax = plt.subplots(figsize=(8,8))
     ax.axis('off')
     df_speed = df_picks[['Pokemon','Variant','Speed']].sort_values('Speed',ascending=False).fillna('')
@@ -168,6 +174,12 @@ def on_submit(df, types):
     canvas.draw()
     canvas.get_tk_widget().pack(side=tk.TOP, fill=tk.BOTH, expand=1)
 
+    #list out the pokemon of each type. just use text boxes for this one because the table is ugly
+    df_temp = df_picks.drop_duplicates(['Pokemon','Typing'])
+    type_dict = {}
+    for t in types:
+        type_dict[t] = df_temp[df_temp['Typing'].str.contains(t.lower())]['Pokemon'].to_list()
+
     i = 0
     for t, mons in type_dict.items():
         mons_str = ', '.join(mons)
@@ -175,36 +187,12 @@ def on_submit(df, types):
         label.grid(row=i+1, column=0, padx=10, pady=(3, 5), sticky="w")
         i += 1
 
-    # fig, ax = plt.subplots(figsize=(8,8), tight_layout=True)
-    # df_plot = pd.melt(df_picks[['HP','Attack','Defense','Sp.Atk','Sp.Def','Speed']].reset_index(),
-    #                   id_vars = 'index', var_name = 'stat', value_name = 'value')
-    # sns.scatterplot(data = df_plot, x = 'stat', y = 'value', hue = 'stat', ax=ax)
-    # i = 0
-    # for key, value in best_stats.items():
-    #     ax.annotate(xy=(i,1.1*value[1]),text=value[0],rotation = 45, ha='left', va='center')
-    #     i += 1
-    # i = 0
-    # for key, value in worst_stats.items():
-    #     ax.annotate(xy=(i,0.7*value[1]),text=value[0],rotation = -45, ha='left', va='center')
-    #     i += 1
-    # ax.set_xlabel('Stat')
-    # ax.set_ylabel('Value')
-    # ax.set_ylim(0,df_plot['value'].max()+40)
-    # ax.get_legend().remove()
 
-    # canvas = FigureCanvasTkAgg(fig, master=tab3) # root is your Tkinter window
-    # canvas.draw()
-    # canvas.get_tk_widget().pack(side=tk.TOP, fill=tk.BOTH, expand=True)
-    # toolbar = NavigationToolbar2Tk(canvas, tab3)
-    # toolbar.update()
-    # canvas._tkcanvas.pack(side=tk.TOP, fill=tk.BOTH, expand=True)
-
-
-# Add Submit Button
+#the button itself
 submit_button = tk.Button(tab1, text="Generate", command=lambda: on_submit(df, types))
 submit_button.grid(row=8, column=0, padx=10, pady=20)
 
-# Create Tab 2 with 18 checkboxes
+#checkbox for the 18 types and a select/deselect all
 tab2 = ttk.Frame(notebook)
 notebook.add(tab2, text='Required Types')
 
@@ -226,6 +214,7 @@ for i in range(18):
 toggle_button = tk.Button(tab2, text="Deselect All", command=toggle_all_tab2)
 toggle_button.grid(row=6, column=0, columnspan=3, pady=10)
 
+#empty tabs for things once you generate them
 tab3 = ttk.Frame(notebook)
 notebook.add(tab3, text='Stat Distribution')
 
@@ -235,5 +224,4 @@ notebook.add(tab4, text='Speed tiers')
 tab5 = ttk.Frame(notebook)
 notebook.add(tab5, text='Type Counts')
 
-# Run the GUI loop
 root.mainloop()

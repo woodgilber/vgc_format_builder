@@ -2,4 +2,3 @@ tkinter
 pandas
 numpy
 matplotlib
-seaborn

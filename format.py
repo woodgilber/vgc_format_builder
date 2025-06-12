@@ -5,8 +5,6 @@ import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2Tk
 from matplotlib.figure import Figure
-import seaborn as sns
-sns.set_context('notebook')
 import pdb
 
 df = pd.read_csv('./format_builder/format_builder.csv')
@@ -118,8 +116,6 @@ def on_submit(df, types):
     output_str = ', '.join(picks)
     status.config(text=f'Your {n_pokemon} are: {output_str}')
 
-    sns.set_context('notebook')
-
     #this block is for making the table about the stats of the pool of mons
     df_picks = df[df['Pokemon'].isin(picks)]
     bst = df_picks[['HP','Attack','Defense','Sp.Atk','Sp.Def','Speed']].sum(axis=1).to_list()
@@ -174,11 +170,26 @@ def on_submit(df, types):
     canvas.draw()
     canvas.get_tk_widget().pack(side=tk.TOP, fill=tk.BOTH, expand=1)
 
+    def select_variants(row, specific_type):
+        names = []
+        if ',' not in row['Typing']:
+            names.append(row['Pokemon'])
+        else:
+            primary_name = row['Pokemon']
+            variant_types = row['Typing'].split(',')
+            for vt in variant_types:
+                if specific_type.lower() in vt:
+                    variant = vt[vt.index('(')+1:vt.index(')')]
+                    names.append(primary_name+'-'+variant)
+        return ', '.join(names)
+
     #list out the pokemon of each type. just use text boxes for this one because the table is ugly
     df_temp = df_picks.drop_duplicates(['Pokemon','Typing'])
     type_dict = {}
     for t in types:
-        type_dict[t] = df_temp[df_temp['Typing'].str.contains(t.lower())]['Pokemon'].to_list()
+        # type_dict[t] = df_temp[df_temp['Typing'].str.contains(t.lower())]['Pokemon'].to_list()
+        df_type = df_temp[df_temp['Typing'].str.contains(t.lower())]
+        type_dict[t] = df_type.apply(select_variants, args=[t], axis=1).to_list()
 
     i = 0
     for t, mons in type_dict.items():
